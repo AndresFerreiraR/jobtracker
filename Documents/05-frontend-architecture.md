@@ -3,6 +3,21 @@
 > Scope: complete `/jobs` route. Server Components + client boundary, Feature Sliced Design, Atomic Design for shared UI, Zustand store for client-only UI state, mandatory React patterns (Compound, Controlled, useReducer, useMemo, Error Boundary).
 > TypeScript **strict mode** everywhere. No `any`.
 
+> ### Shipped layout vs. design target
+>
+> The **shipped** `web/` uses a lean Feature Sliced Design layout with four top-level layers directly under the project root (per FSD convention): `app/` (route segments) → `entities/` (domain types + fetchers) → `features/` (use-case slices) → `widgets/` (composed blocks) → `shared/` (http client, config, ui primitives).
+>
+> The layout below shows a **richer variant** with an explicit `presentation/views/<page>/` closed unit — the original design target. Every pattern described in this document (Zustand slices, `useReducer`-driven forms, Compound Components in filters, Server/Client boundary discipline, error boundaries, typed API client) **is applied in the shipped code**; only the physical folder path differs. Mapping:
+>
+> | This document says | Shipped path |
+> |---|---|
+> | `src/presentation/views/jobs/hooks/` | `features/jobs/*` and `widgets/jobs-*` |
+> | `src/presentation/views/jobs/features/<slice>/` | `features/<slice>/` |
+> | `src/presentation/views/jobs/stores/` | `features/*/store.ts` (per-slice Zustand) |
+> | `src/infrastructure/api/client.ts` | `shared/http/client.ts` + `entities/<x>/api.ts` (server) + `entities/<x>/api.client.ts` (browser) |
+> | `src/lib/di/container.server.ts` | `shared/config/env.server.ts` and `shared/http/factory.ts` |
+> | `src/app/(authenticated)/jobs/…` | `app/jobs/…` (no auth group — see [ADR-0009](./adr/0009-authentication-out-of-scope.md)) |
+
 ---
 
 ## 1. Global folder layout

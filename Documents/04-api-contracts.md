@@ -102,8 +102,18 @@ Sliding-window: **100 requests/min per `sub` claim** for read endpoints, **30 re
 | 6 | `POST`   | `/api/v1/jobs/{id}/photos`           | Add a photo to a non-terminal job | `jobs:write` |
 | 7 | `POST`   | `/api/v1/jobs/{id}/complete`         | Transition InProgress → Completed | `jobs:write` |
 | 8 | `POST`   | `/api/v1/jobs/{id}/cancel`           | Transition to Cancelled | `jobs:write` |
+| 9 | `POST`   | `/api/v1/jobs/{id}/photos/upload`    | Multipart photo upload → returns URL | `jobs:write` |
+| 10 | `GET`   | `/api/v1/customers`                  | Search / paginate customers | `customers:read` |
+| 11 | `POST`  | `/api/v1/customers`                  | Create a customer | `customers:write` |
+| 12 | `POST`  | `/api/v1/customers/batch`            | Bulk create (import / seed) | `customers:write` |
+| 13 | `GET`   | `/api/v1/employees`                  | Search / paginate employees | `employees:read` |
+| 14 | `POST`  | `/api/v1/employees`                  | Create an employee | `employees:write` |
+| 15 | `POST`  | `/api/v1/employees/batch`            | Bulk create | `employees:write` |
+| 16 | `POST`  | `/api/v1/uploads/signature`          | Multipart signature upload → returns URL | `jobs:write` |
 
-There is **no** `PUT`/`PATCH /jobs/{id}` and **no** `DELETE`. Mutations happen through explicit transition verbs (task-based UI + audit-friendly).
+There is **no** `PUT`/`PATCH /jobs/{id}` and **no** `DELETE`. Mutations happen through explicit transition verbs (task-based UI + audit-friendly). Customers and Employees expose create-only + list today; edit/delete land in the next iteration.
+
+**Auth policies** in the "Auth policy" column reflect the target JWT-based model (see §6). In this iteration all endpoints run with `[AllowAnonymous]`; tenant is scoped by the `X-Organization-Id` header — see [ADR-0009](./adr/0009-authentication-out-of-scope.md).
 
 ---
 
@@ -363,6 +373,84 @@ Body:
 - `404` — not found.
 - `409` — `Job.InvalidTransition` (already terminal).
 - `400` — reason too long / empty.
+
+---
+
+### 3.9 `/api/v1/customers` — Customer management
+
+Shipped as a first-class resource because `POST /jobs` requires an existing `CustomerId`. Same tenancy and error conventions as Jobs.
+
+| Verb | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/customers?q=...&limit=50` | Paged search by name/email. |
+| `POST` | `/api/v1/customers` | Create a customer (returns `201` with new id). |
+| `POST` | `/api/v1/customers/batch` | Bulk create for seeding demo data / imports (returns array of created ids). |
+
+**`CreateCustomerRequest`** (canonical shape):
+
+```csharp
+public sealed record CreateCustomerRequest(
+    string FullName,
+    string? Email,
+    string? Phone,
+    AddressRequest? Address);
+```
+
+Validation:
+- `fullName` — 1..200, non-empty.
+- `email` — RFC 5322 shape if present.
+- `phone` — free text 1..40 if present.
+- `address` — optional; when present, follows `AddressRequest` (international-friendly, `zipCode` up to 20 chars).
+
+Uniqueness: `(organization_id, email)` when `email` is present. Duplicate → `409 Customer.DuplicateEmail`.
+
+---
+
+### 3.10 `/api/v1/employees` — Employee (assignee) management
+
+Same shape as Customers. Employees are the assignee pool for `POST /jobs/{id}/schedule`.
+
+| Verb | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/employees?q=...&limit=50` | Paged search by name/email. |
+| `POST` | `/api/v1/employees` | Create an employee. |
+| `POST` | `/api/v1/employees/batch` | Bulk create. |
+
+**`CreateEmployeeRequest`**:
+
+```csharp
+public sealed record CreateEmployeeRequest(
+    string FullName,
+    string? Email,
+    string? Phone,
+    string? Role);
+```
+
+Validation:
+- `fullName` — 1..200, non-empty.
+- `role` — free text 1..100 if present (e.g., "Foreman", "Installer").
+
+Uniqueness: `(organization_id, email)` when `email` is present.
+
+---
+
+### 3.11 `POST /api/v1/uploads/signature` — signature multipart upload
+
+Client-side flow for capturing the customer signature at completion time. The endpoint returns an absolute URL that the client then passes to `POST /jobs/{id}/complete` as `signatureUrl`.
+
+- `Content-Type: multipart/form-data`
+- Field: `file` (binary, ≤ 2 MB)
+- Response `201 Created`:
+
+  ```json
+  { "url": "http://localhost:59081/uploads/2026/08/18/abc123.png", "size": 45231 }
+  ```
+
+- Failures: `400` (missing file / too large / invalid content-type).
+
+Storage: `LocalFileStorage` writes under `/app/uploads` (mapped to a Docker named volume by compose). Path convention: `YYYY/MM/DD/<random>.<ext>`. Photo upload (`POST /api/v1/jobs/{id}/photos/upload`) follows the same pattern with a larger size limit and returns the URL that populates `POST /jobs/{id}/photos`.
+
+The Swagger UI exposes multipart file pickers thanks to `FileUploadOperationFilter`.
 
 ---
 

@@ -129,7 +129,83 @@ CREATE TABLE jobs.outbox_messages (
 - `content` is `jsonb` → indexable, queryable, cheap.
 - `attempts` + `last_error` support exponential backoff and DLQ decisions in Hangfire jobs.
 
-### 3.4 `jobs.processed_inbox` (idempotency on consumers *inside* this module)
+### 3.4 `jobs.customers` — shipped
+
+```sql
+CREATE TABLE jobs.customers (
+    id                  uuid                         NOT NULL PRIMARY KEY,
+    organization_id     uuid                         NOT NULL,
+
+    full_name           varchar(200)                 NOT NULL,
+    email               varchar(320),                -- RFC 5321 max
+    phone               varchar(40),
+
+    -- optional address (owned VO, columns nullable together)
+    address_street      varchar(200),
+    address_city        varchar(120),
+    address_state       varchar(120),
+    address_zip_code    varchar(20),                 -- international-friendly (Colombian postcodes, UK, etc.)
+    address_latitude    numeric(9,6),
+    address_longitude   numeric(9,6),
+
+    created_at          timestamptz                  NOT NULL,
+    updated_at          timestamptz                  NOT NULL,
+    version             integer                      NOT NULL DEFAULT 0
+);
+
+CREATE INDEX ix_customers_org_name        ON jobs.customers (organization_id, full_name);
+CREATE UNIQUE INDEX ux_customers_org_email
+    ON jobs.customers (organization_id, lower(email))
+    WHERE email IS NOT NULL;
+```
+
+Referenced by `jobs.jobs.customer_id` (soft FK — no ON DELETE cascade because the aggregate boundary forbids cross-aggregate deletes).
+
+### 3.5 `jobs.employees` — shipped
+
+```sql
+CREATE TABLE jobs.employees (
+    id                  uuid                         NOT NULL PRIMARY KEY,
+    organization_id     uuid                         NOT NULL,
+
+    full_name           varchar(200)                 NOT NULL,
+    email               varchar(320),
+    phone               varchar(40),
+    role                varchar(100),                -- free text (e.g. Foreman, Installer)
+
+    created_at          timestamptz                  NOT NULL,
+    updated_at          timestamptz                  NOT NULL,
+    version             integer                      NOT NULL DEFAULT 0
+);
+
+CREATE INDEX ix_employees_org_name        ON jobs.employees (organization_id, full_name);
+CREATE UNIQUE INDEX ux_employees_org_email
+    ON jobs.employees (organization_id, lower(email))
+    WHERE email IS NOT NULL;
+```
+
+Referenced by `jobs.jobs.assignee_id`.
+
+### 3.6 `jobs.idempotency_keys` — shipped
+
+```sql
+CREATE TABLE jobs.idempotency_keys (
+    key                 varchar(200)                 NOT NULL,
+    organization_id     uuid                         NOT NULL,
+    path                varchar(500)                 NOT NULL,
+    response_status     integer                      NOT NULL,
+    response_body       jsonb                        NOT NULL,
+    created_at          timestamptz                  NOT NULL,
+    expires_at          timestamptz                  NOT NULL,
+    PRIMARY KEY (organization_id, path, key)
+);
+
+CREATE INDEX ix_idempotency_keys_expiry ON jobs.idempotency_keys (expires_at);
+```
+
+Populated by `IdempotencyMiddleware` on writes carrying `Idempotency-Key`. A recurring Hangfire job prunes expired rows.
+
+### 3.7 `jobs.processed_inbox` (idempotency on consumers *inside* this module)
 
 Not needed inside `jobs` in this iteration (Jobs is only a producer). Billing and Notifications get their own `processed_inbox` tables (see §7 stubs).
 

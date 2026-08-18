@@ -3,6 +3,12 @@
 > Scope: How the C# projects are organized, how they reference each other, DI wiring per module, CQRS + MediatR pipeline, Result/Error contract, and how each Clean Architecture rule is enforced (with NetArchTest tests).
 > Style: **Modular Monolith with Clean Architecture per module**.
 
+> ### Shipped vs. design intent
+>
+> Today the solution ships **one module**: `Jobs`, which owns three aggregates (`Job`, `Customer`, `Employee`) plus the `JobPhoto` entity inside the `Job` aggregate. The `Billing` and `Notifications` modules referenced below are **illustrative** — they exist to show how the modular monolith would scale (new schema + new module folder + integration event handler), but are not implemented as code. The Jobs module already publishes `JobCompletedIntegrationEvent` in the exact contract a future `Billing` consumer would need.
+>
+> The composition root is `src/Host/JobTracker.Api/` (not `src/Api/`). The docker-compose that runs the full stack lives at the **repository root**, not under `api/`.
+
 ---
 
 ## 1. Solution layout
@@ -13,10 +19,11 @@ api/
 ├── Directory.Build.props                         # global compiler flags + Nuget locking
 ├── Directory.Packages.props                      # centrally-managed package versions
 ├── nuget.config
-├── docker-compose.yml                            # postgres + api + otel-collector
+├── Dockerfile                                    # multi-stage build for the api container
 ├── src/
-│   ├── Api/
-│   │   └── JobTracker.Api.csproj                 # composition root (webapi)
+│   ├── Host/
+│   │   └── JobTracker.Api/
+│   │       └── JobTracker.Api.csproj             # composition root (webapi, Program.cs)
 │   │
 │   ├── BuildingBlocks/
 │   │   ├── SharedKernel/
@@ -38,29 +45,40 @@ api/
 │   │                                              # ApiVersioning, base Controller
 │   │
 │   └── Modules/
-│       ├── Jobs/
-│       │   ├── Jobs.Domain/
-│       │   │   └── Jobs.Domain.csproj             # aggregates, VOs, events, IJobRepository
-│       │   ├── Jobs.Application/
-│       │   │   └── Jobs.Application.csproj        # CQRS handlers, validators, DTOs, IJobReadRepository
-│       │   ├── Jobs.Infrastructure/
-│       │   │   └── Jobs.Infrastructure.csproj     # JobsDbContext, JobRepository, migrations
-│       │   ├── Jobs.Presentation/
-│       │   │   └── Jobs.Presentation.csproj       # JobsController(s), Swagger tags
-│       │   └── Jobs.IntegrationEvents/
-│       │       └── Jobs.IntegrationEvents.csproj  # public event records (pure POCO)
-│       │
-│       ├── Billing/
-│       │   ├── Billing.Domain/
-│       │   ├── Billing.Application/
-│       │   ├── Billing.Infrastructure/
-│       │   ├── Billing.Presentation/
-│       │   └── Billing.IntegrationEvents/
-│       │
-│       └── Notifications/
-│           ├── Notifications.Application/         # only Application + Infra needed for MVP
-│           ├── Notifications.Infrastructure/
-│           └── Notifications.IntegrationEvents/   # empty for MVP (consumer only)
+│       └── Jobs/                                  # only module shipped in this iteration
+│           ├── Jobs.Domain/
+│           │   ├── Common/                        # BaseAuditableEntity, tenant filter attribute
+│           │   ├── Jobs/                          # Job aggregate + JobPhoto + JobStatus + events
+│           │   ├── Customers/                     # Customer aggregate + events
+│           │   ├── Employees/                     # Employee aggregate + events
+│           │   └── Jobs.Domain.csproj
+│           ├── Jobs.Application/
+│           │   └── Jobs.Application.csproj        # MediatR handlers, validators, DTOs, IQueryService abstractions
+│           ├── Jobs.Infrastructure/
+│           │   ├── Persistence/                   # JobsDbContext, EF configurations, Migrations
+│           │   ├── Repositories/                  # JobRepository, CustomerRepository, EmployeeRepository
+│           │   ├── QueryServices/                 # AsNoTracking read services
+│           │   ├── FileStorage/                   # LocalFileStorage adapter
+│           │   ├── Outbox/                        # OutboxDispatcher (Hangfire recurring)
+│           │   └── Jobs.Infrastructure.csproj
+│           ├── Jobs.Presentation/
+│           │   ├── Jobs/                          # JobsController + Photos + Signature upload
+│           │   ├── Customers/                     # CustomersController
+│           │   ├── Employees/                     # EmployeesController
+│           │   └── Jobs.Presentation.csproj
+│           └── Jobs.IntegrationEvents/
+│               └── Jobs.IntegrationEvents.csproj  # contract-only assembly (OHS)
+│
+│       # --- Future modules (illustrative, not shipped) ---
+│       # ├── Billing/                             # would consume JobCompletedIntegrationEvent
+│       # │   ├── Billing.Domain/
+│       # │   ├── Billing.Application/
+│       # │   ├── Billing.Infrastructure/
+│       # │   ├── Billing.Presentation/
+│       # │   └── Billing.IntegrationEvents/
+│       # └── Notifications/
+│       #     ├── Notifications.Application/       # consume-only, no domain
+│       #     └── Notifications.Infrastructure/    # SendGrid adapter
 │
 └── tests/
     ├── Architecture.Tests/
@@ -68,8 +86,8 @@ api/
     ├── Jobs.Domain.UnitTests/
     ├── Jobs.Application.UnitTests/
     ├── Jobs.Infrastructure.IntegrationTests/      # Testcontainers Postgres
-    ├── Billing.Domain.UnitTests/
     └── Api.EndToEndTests/                          # WebApplicationFactory + Testcontainers
+    # Billing.Domain.UnitTests/                     # illustrative — added alongside a future Billing module
 ```
 
 **Naming convention:** every project ends in `<Module>.<Layer>.csproj`. Assembly name matches project name.

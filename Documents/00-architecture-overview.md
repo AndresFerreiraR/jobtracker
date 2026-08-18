@@ -6,6 +6,28 @@
 
 ---
 
+## 0. Shipped vs. design intent
+
+This document describes the **target architecture** for JobTracker. It intentionally covers both what is live today and what the architecture is prepared to support tomorrow — the modular boundaries, schema-per-module, integration events, and outbox pipeline exist so new modules can be added without touching the existing ones.
+
+**Shipped in this iteration (verifiable in the repo):**
+
+- **`Jobs` module** with three aggregates in its own bounded context: `Job`, `Customer`, `Employee`. Plus the `JobPhoto` entity as part of the `Job` aggregate.
+- **Full CRUD + workflow** on Jobs (Draft → Scheduled → InProgress → Completed / Cancelled), Customers, Employees, plus photo upload and signature upload.
+- **Cross-cutting**: multi-tenancy (X-Organization-Id → `ITenantContext`), Result-based error handling → RFC 7807, Serilog + OTel packages, Idempotency middleware, Outbox with Hangfire dispatcher, EF auto-migration on startup, CORS open (demo).
+- **Frontend**: Next.js 15 App Router with FSD layers (`app/` + `entities/` + `features/` + `widgets/` + `shared/`), server + client fetchers, multipart signature upload.
+- **DevOps**: single `docker-compose.yml` (postgres + api + web), GitHub Actions workflow templates in `Infra/github-workflows/`.
+
+**Illustrative in this document (not shipped as code):**
+
+- `Billing`, `Notifications`, `Identity` modules. They appear in diagrams and tables **to show how the modular monolith scales** — adding one is a matter of creating a new schema + module folder + integration event handler, without touching Jobs. The Jobs module publishes `JobCompletedIntegrationEvent` in the exact contract that a future `Billing` module would consume.
+- SendGrid / OTel Collector integrations. The OTel SDK is wired in `Program.cs`; the collector wiring lives in `Infra/otel/config.yaml` for future observability.
+- Login flow / JWT issuing endpoint — see [ADR-0009](./adr/0009-authentication-out-of-scope.md). JWT infrastructure is wired behind `Jwt:Enabled=false`.
+
+The rest of this document reads as design + rationale for both cases. Every section that describes shipped functionality is annotated with a ✅ marker in section 7 ("Cross-cutting concerns → Status in this iteration").
+
+---
+
 ## 1. Goals
 
 | Goal | Driver |
@@ -335,47 +357,52 @@ sequenceDiagram
 
 ```
 Repositories/
-├── BackEnd/
-│   └── JobTracker/
-│       ├── src/
-│       │   ├── Api/                          (composition root)
-│       │   ├── Modules/
-│       │   │   ├── Jobs/
-│       │   │   │   ├── Jobs.Domain/
-│       │   │   │   ├── Jobs.Application/
-│       │   │   │   ├── Jobs.Infrastructure/
-│       │   │   │   ├── Jobs.Presentation/
-│       │   │   │   └── Jobs.IntegrationEvents/
-│       │   │   ├── Billing/                  (same layout)
-│       │   │   └── Notifications/            (same layout)
-│       │   ├── SharedKernel/
-│       │   └── BuildingBlocks/               (Result, DomainEvent, Outbox, Tenant)
-│       ├── tests/
-│       │   ├── Architecture.Tests/
-│       │   ├── Jobs.UnitTests/
-│       │   ├── Jobs.IntegrationTests/
-│       │   └── ...
-│       ├── docker-compose.yml
-│       └── JobTracker.sln
-├── FrontEnd/
-│   └── jobtracker-web/
-│       ├── src/
-│       │   ├── app/                          (Next.js App Router)
-│       │   ├── presentation/                 (FSD views)
-│       │   ├── shared/                       (atoms, molecules, utils)
-│       │   ├── entities/                     (domain types shared FE-side)
-│       │   ├── lib/                          (di, api client, server-only)
-│       │   └── infrastructure/               (adapters)
-│       ├── e2e/                              (Playwright)
-│       └── package.json
-└── Documents/
-    ├── 00-architecture-overview.md
-    ├── 01-domain-model.md
-    ├── ...
-    └── adr/
-        ├── 0001-modular-monolith.md
-        ├── 0002-outbox-hangfire.md
-        └── ...
+├── api/                                      (.NET 9 solution)
+│   ├── src/
+│   │   ├── Host/
+│   │   │   └── JobTracker.Api/               (composition root, Program.cs)
+│   │   ├── Modules/
+│   │   │   └── Jobs/
+│   │   │       ├── Jobs.Domain/
+│   │   │       ├── Jobs.Application/
+│   │   │       ├── Jobs.Infrastructure/
+│   │   │       ├── Jobs.Presentation/
+│   │   │       └── Jobs.IntegrationEvents/   (contract-only assembly = OHS)
+│   │   └── BuildingBlocks/
+│   │       ├── SharedKernel/                 (Result, Error, Entity, ValueObject, DomainEvent, IDs)
+│   │       ├── Application/                  (MediatR behaviors, contracts, ITenantContext)
+│   │       ├── Infrastructure/               (outbox, dispatcher, EF interceptors, file storage)
+│   │       └── Presentation/                 (ApiControllerBase, ProblemDetails mapper, middlewares)
+│   ├── tests/
+│   │   ├── Architecture.Tests/
+│   │   ├── Jobs.UnitTests/
+│   │   └── Jobs.IntegrationTests/
+│   ├── JobTracker.sln
+│   └── Dockerfile
+├── web/                                      (Next.js 15 App Router)
+│   ├── app/                                  (route segments, RSC + client components)
+│   ├── entities/                             (domain types + fetchers, FSD layer 1)
+│   ├── features/                             (use-case slices, FSD layer 2)
+│   ├── widgets/                              (composed blocks, FSD layer 3)
+│   ├── shared/                               (http client, config, ui primitives)
+│   ├── playwright/                           (E2E tests)
+│   ├── package.json
+│   └── Dockerfile
+├── Documents/
+│   ├── 00-architecture-overview.md
+│   ├── 01..09-*.md
+│   ├── diagrams/architecture.drawio          (this diagram, editable)
+│   └── adr/
+│       ├── 0001-modular-monolith-over-microservices.md
+│       ├── ..
+│       └── 0009-authentication-out-of-scope.md
+├── Infra/
+│   ├── otel/config.yaml                      (reserved for observability wiring)
+│   └── github-workflows/                     (copy to .github/workflows/ before push)
+├── docker-compose.yml                        (single source of truth: postgres + api + web)
+├── README.md
+├── .gitignore
+└── LICENSE
 ```
 
 ---

@@ -15,23 +15,22 @@ Repositories/
 │   └── tests/…
 ├── web/
 │   ├── Dockerfile                     # nextjs standalone multi-stage
-│   └── src/…
-├── infra/
-│   ├── docker-compose.yml             # local stack (postgres + api + web + otel-collector)
-│   ├── docker-compose.override.yml    # dev-only overrides (volumes, hot reload)
-│   ├── otel-collector.yaml            # OTLP receiver → console/OTLP exporter
-│   └── postgres/
-│       └── init.sql                   # CREATE DATABASE + CREATE USER (bootstrap)
-├── .github/
-│   └── workflows/
+│   ├── app/…  entities/…  features/…  widgets/…  shared/…
+│   └── playwright/                    # E2E tests
+├── Infra/
+│   ├── otel/config.yaml               # OpenTelemetry collector config (reserved for observability)
+│   └── github-workflows/              # workflow templates — copy to .github/workflows/ before push
 │       ├── backend.yml
 │       ├── frontend.yml
 │       └── e2e.yml
-└── Documents/
-    └── …
+├── Documents/…
+├── docker-compose.yml                 # single source of truth (postgres + api + web)
+├── README.md
+├── .gitignore
+└── LICENSE
 ```
 
-Docker + compose live under `infra/` so both `api/` and `web/` stay clean.
+The compose file lives at the **repository root** (not under `Infra/`) so the standard `docker compose up --build` works with zero flags. `Infra/` keeps the collector config and workflow templates.
 
 ---
 
@@ -167,7 +166,7 @@ An `app/api/health/route.ts` simply returns `200` for the container healthcheck.
 
 ## 4. docker-compose
 
-`infra/docker-compose.yml`:
+`docker-compose.yml` (at the **repository root** — single source of truth):
 
 ```yaml
 name: jobtracker
@@ -181,67 +180,58 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
     ports:
-      - "5432:5432"
+      - "5432:5432"                # host:container
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d jobtracker"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.106.1
-    container_name: jt-otel
-    command: ["--config=/etc/otelcol/config.yaml"]
-    volumes:
-      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
-    ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-    depends_on: [ postgres ]
-
   api:
     build:
-      context: ../api
+      context: ./api
       dockerfile: Dockerfile
     container_name: jt-api
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__JobTracker: Host=postgres;Database=jobtracker;Username=app;Password=app
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_SERVICE_NAME: JobTracker.Api
+      Database__AutoMigrate: "true"       # EF migrations apply on startup (dev/compose only)
     ports:
-      - "8080:8080"
+      - "59081:8080"               # host:container (host port avoids common conflicts)
     depends_on:
       postgres:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 30
+    volumes:
+      - uploads:/app/uploads       # persists photo/signature uploads across recreations
 
   web:
     build:
-      context: ../web
+      context: ./web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:59081    # baked into the client bundle at build time
     container_name: jt-web
     environment:
-      NEXT_PUBLIC_APP_ENV: local
-      API_BASE_URL: http://api:8080
+      API_BASE_URL: http://api:8080                        # server-side (RSC / Server Actions) — compose DNS
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:59081     # client-side fetch — host port
+      DEFAULT_ORG_ID: 00000000-0000-0000-0000-000000000001
     ports:
-      - "3000:3000"
+      - "59082:3000"               # host:container
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   pgdata:
+  uploads:
 ```
+
+**Why the split of API base URLs on the web service?** Next.js Server Components fetch from *inside* the container (compose DNS `http://api:8080`), while the browser fetches from the host (`http://localhost:59081`). Both env vars are required.
+
+An optional `otel-collector` service can be added when observability is turned on; the collector config lives at `Infra/otel/config.yaml`. See `Infra/README.md`.
 
 `infra/docker-compose.override.yml` (loaded automatically by `docker compose up`, dev-friendly):
 
@@ -250,18 +240,18 @@ services:
   api:
     build:
       target: build     # keep the SDK stage so we can run `dotnet watch`
-    command: ["dotnet", "watch", "--project", "src/Api/JobTracker.Api.csproj", "--no-hot-reload"]
+    command: ["dotnet", "watch", "--project", "src/Host/JobTracker.Api/JobTracker.Api.csproj", "--no-hot-reload"]
     volumes:
-      - ../api:/src
+      - ./api:/src
 
   web:
-    command: ["pnpm", "dev"]
+    command: ["npm", "run", "dev"]
     volumes:
-      - ../web:/app
+      - ./web:/app
       - /app/node_modules
 ```
 
-`infra/otel-collector.yaml`:
+`Infra/otel/config.yaml`:
 
 ```yaml
 receivers:
@@ -293,25 +283,19 @@ service:
       exporters:  [ debug ]
 ```
 
-`infra/postgres/init.sql`:
+> There is no `postgres/init.sql`. The application applies EF migrations on startup when `Database:AutoMigrate=true` (default in compose). For production, the flag should be flipped off and migrations run out-of-band (`dotnet ef database update` from CI or a one-shot init container).
 
-```sql
--- One-time bootstrap (executed by the postgres container on first boot).
--- The application connects as 'app', which has full rights to the 'jobtracker' database.
--- EF migrations run at startup in Development.
-```
-
-Everyday usage:
+Everyday usage (from the repository root):
 
 ```powershell
-cd infra
-docker compose up -d postgres otel-collector
-# then run api + web on host for max iteration speed:
-dotnet run --project ..\api\src\Host\JobTracker.Api
-npm --prefix ..\web run dev
-
-# or run everything in-cluster:
+# Full stack, everything containerized
 docker compose up --build
+# → postgres 5432, api http://localhost:59081, web http://localhost:59082
+
+# Or: postgres in a container + api/web on the host for fastest iteration
+docker compose up -d postgres
+dotnet run --project api/src/Host/JobTracker.Api
+npm --prefix web run dev
 ```
 
 ---
@@ -510,52 +494,70 @@ jobs:
 
 ### 6.3 E2E workflow — `.github/workflows/e2e.yml`
 
-Runs against a fully-composed stack so the tests hit real HTTP:
+Runs against a fully-composed stack so the tests hit real HTTP. The shipped workflow (`Infra/github-workflows/e2e.yml`) uses a slightly different approach — it runs Postgres as a GHA service, applies migrations, publishes the API, boots it as a background process, and then runs Playwright against the local Next.js `start`. Sketch:
 
 ```yaml
 name: e2e
 
 on:
-  pull_request:
-    paths: [ 'api/**', 'web/**', 'infra/**' ]
+  push:
+    branches: [main]
+    paths: [ 'api/**', 'web/**', 'Infra/**', '.github/workflows/e2e.yml' ]
 
 jobs:
   playwright:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jobtracker_e2e
+          POSTGRES_USER: jobtracker
+          POSTGRES_PASSWORD: jobtracker
+        ports: [ 5432:5432 ]
+
+    env:
+      ConnectionStrings__JobTracker: Host=localhost;Port=5432;Database=jobtracker_e2e;Username=jobtracker;Password=jobtracker
+      API_BASE_URL: http://localhost:5000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:5000
+
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Boot the stack
-        working-directory: infra
-        run: docker compose up -d --build
-      - name: Wait for readiness
-        run: |
-          for i in {1..60}; do
-            curl -fsS http://localhost:8080/health/ready && \
-            curl -fsS http://localhost:3000/api/health && break || sleep 2
-          done
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 9.0.x }
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - uses: pnpm/action-setup@v4
-        with: { version: 9 }
-      - name: Install FE deps
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+
+      - name: Apply EF migrations
+        working-directory: api
+        run: |
+          dotnet tool install -g dotnet-ef --version 9.0.8
+          dotnet ef database update --project src/Modules/Jobs/Jobs.Infrastructure --startup-project src/Modules/Jobs/Jobs.Infrastructure --context JobsDbContext
+
+      - name: Publish + boot backend
+        working-directory: api
+        run: |
+          dotnet publish src/Host/JobTracker.Api/JobTracker.Api.csproj -c Release -o out
+          nohup dotnet out/JobTracker.Api.dll > api.log 2>&1 &
+          for i in {1..40}; do curl -fs http://localhost:5000/health && break || sleep 2; done
+
+      - name: Install FE deps + Playwright
         working-directory: web
-        run: pnpm install --frozen-lockfile
-      - name: Playwright browsers
-        working-directory: web
-        run: pnpm exec playwright install --with-deps
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npx playwright install --with-deps chromium
+
       - name: Run E2E
         working-directory: web
-        env:
-          E2E_BASE_URL: http://localhost:3000
-        run: pnpm exec playwright test
-      - name: Upload traces / videos on failure
-        if: failure()
+        run: npx playwright test
+
+      - if: always()
         uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: web/playwright-report
+        with: { name: playwright-report, path: web/playwright-report }
 ```
+
+Full file: `Infra/github-workflows/e2e.yml`. Copy to `.github/workflows/` at the repo root before pushing.
 
 ---
 

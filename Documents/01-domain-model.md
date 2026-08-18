@@ -1,6 +1,6 @@
 # 01 — Domain Model
 
-> Focus: **Jobs** bounded context (deep). Billing + Notifications as conceptual stubs (public contracts only).
+> Focus: **Jobs** bounded context (deep). In this iteration it also owns `Customer` and `Employee` as sibling aggregates. `Billing` + `Notifications` are conceptual stubs (public contracts only, not shipped).
 > Style: DDD tactical patterns — Aggregate Roots, Entities, Value Objects, Domain Events, Domain Services.
 > Anti-pattern to avoid: **Anemic Domain Model**. All invariants live inside the aggregate, never in handlers.
 
@@ -12,8 +12,9 @@
 |---|---|
 | **Organization** | Tenant. Every entity carries `OrganizationId`. Isolation boundary. |
 | **Job** | A roofing work assignment. Aggregate root of the Jobs module. |
-| **Assignee** | The user (crew member) responsible for executing a Job. Identified by `AssigneeId` (foreign key to Identity, not a domain entity inside Jobs). |
-| **Customer** | The end-client whose property is worked on. Identified by `CustomerId`. Lives in an external bounded context (Contacts). |
+| **Assignee** | The employee (crew member) responsible for executing a Job. Identified by `AssigneeId`. Backed by the `Employee` aggregate (same bounded context in this iteration; a candidate for its own `Workforce` module in the future). |
+| **Customer** | The end-client whose property is worked on. Identified by `CustomerId`. Backed by the `Customer` aggregate. In this iteration Customer lives inside the Jobs bounded context; a future `Contacts` module could own it and Jobs would consume via integration events. |
+| **Employee** | Crew member available for scheduling. Aggregate root with own repository + endpoints. |
 | **Address** | Physical location of the Job. Value Object (structural equality). |
 | **JobPhoto** | Photograph taken during job execution. Entity within the Job aggregate. Never accessed directly outside the aggregate. |
 | **JobStatus** | Enum: `Draft`, `Scheduled`, `InProgress`, `Completed`, `Cancelled`. Terminal states: `Completed`, `Cancelled`. |
