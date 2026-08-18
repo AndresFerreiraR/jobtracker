@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Jobs.Presentation</RootNamespace>
+    <AssemblyName>Jobs.Presentation</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Jobs.Application\Jobs.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Presentation\JobTracker.BuildingBlocks.Presentation.csproj" />
+  </ItemGroup>
+</Project>

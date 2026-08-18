@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Jobs.Application</RootNamespace>
+    <AssemblyName>Jobs.Application</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Jobs.Domain\Jobs.Domain.csproj" />
+    <ProjectReference Include="..\Jobs.IntegrationEvents\Jobs.IntegrationEvents.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Application\JobTracker.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="JobTracker.Tests.Unit" />
+    <InternalsVisibleTo Include="JobTracker.Tests.Integration" />
+  </ItemGroup>
+</Project>

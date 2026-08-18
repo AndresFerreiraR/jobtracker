@@ -1,0 +1,206 @@
+<mxfile host="app.diagrams.net" modified="2026-08-18T00:00:00.000Z" agent="jobtracker" version="24.0.0" type="device">
+  <diagram name="JobTracker Architecture" id="jt-arch-01">
+    <mxGraphModel dx="2000" dy="1300" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1720" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============= TITLE ============= -->
+        <mxCell id="title" value="JobTracker — Architecture (Multi-tenant Modular Monolith + Next.js)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Docker Compose stack: postgres + api + web  |  Tenant isolation via X-Organization-Id (JWT prepared, see ADR-0009)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1300" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- ============= BROWSER ============= -->
+        <mxCell id="browser" value="Browser (End User)&#10;&#10;• Renders Next.js Client Components&#10;• fetch() to http://localhost:59081&#10;• Sends X-Organization-Id header" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=8;spacingLeft=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="80" y="110" width="320" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ============= WEB CONTAINER ============= -->
+        <mxCell id="web-container" value="web  (Next.js 15 Standalone) — container :3000 / host :59082" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEEEEE;strokeColor=#666666;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;spacingLeft=10;align=left;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="250" width="1240" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="web-app" value="app/  (App Router)&#10;&#10;• Server Components fetch on server (http://api:8080)&#10;• Client Components hydrate + fetch (host :59081)&#10;• Server Actions for mutations&#10;• Middleware: propagates DEFAULT_ORG_ID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="290" width="290" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="web-entities" value="entities/  (FSD layer 1)&#10;&#10;• Domain-shaped types (Job, Customer,&#10;   Employee, JobStatus)&#10;• Server fetchers (api.ts) + client&#10;   fetchers (api.client.ts)&#10;• Zod schemas mirror .NET contracts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="410" y="290" width="290" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="web-features" value="features/  (FSD layer 2)&#10;&#10;• Use-case slices: create-job, complete-job,&#10;   customer-picker, employee-picker&#10;• Owns forms, validation, upload flows&#10;• Own signature upload (multipart)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="720" y="290" width="290" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="web-widgets" value="widgets/ + shared/&#10;&#10;• Widgets: JobsList, JobDetails, JobActions&#10;• Shared: http client, UI primitives,&#10;   config (public/server env split)&#10;• Tailwind + Azure palette" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="290" width="290" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- ============= API CONTAINER ============= -->
+        <mxCell id="api-container" value="api  (ASP.NET Core 9 — Modular Monolith) — container :8080 / host :59081" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEEEEE;strokeColor=#666666;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;spacingLeft=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="80" y="510" width="1240" height="450" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 1: Presentation -->
+        <mxCell id="api-presentation" value="Presentation  (JobTracker.Api + Jobs.Presentation)&#10;&#10;• Controllers: Jobs, Customers, Employees, Photos, SignatureUpload&#10;• ApiControllerBase.ToActionResult&lt;T&gt; — Result → HTTP + RFC 7807 ProblemDetails&#10;• Swagger + IFormFile filter for multipart&#10;• Middleware pipeline: Serilog → CORS → Auth (off) → Idempotency → Exception→ProblemDetails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="100" y="550" width="900" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 2: Application -->
+        <mxCell id="api-application" value="Application  (Jobs.Application + BuildingBlocks.Application)&#10;&#10;• MediatR: ICommand&lt;T&gt; / IQuery&lt;T&gt; + Handlers (one-per-use-case)&#10;• Behaviors: LoggingBehavior, ValidationBehavior (FluentValidation)&#10;• Read side: IJobQueryService, ICustomerQueryService, IEmployeeQueryService (AsNoTracking, DTOs)&#10;• Contracts: IUnitOfWork, IDateTimeProvider, ITenantContext, IFileStorage, IOutboxWriter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="650" width="900" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 3: Domain -->
+        <mxCell id="api-domain" value="Domain  (Jobs.Domain + SharedKernel)&#10;&#10;• Aggregate roots: Job (state machine Draft→Scheduled→InProgress→Completed/Cancelled), Customer, Employee&#10;• Entities: JobPhoto  |  Value objects: Address, Money  |  Strongly-typed IDs: JobId, CustomerId…&#10;• Domain events (Job.Created, Job.Scheduled, Job.Completed…) + Result&lt;T&gt; / Result — no exceptions for business rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="750" width="900" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 4: Infrastructure -->
+        <mxCell id="api-infra" value="Infrastructure  (Jobs.Infrastructure + BuildingBlocks.Infrastructure)&#10;&#10;• EF Core: JobsDbContext (schema jobs.*)  |  Repositories: JobRepository, CustomerRepository, EmployeeRepository&#10;• InsertOutboxMessagesInterceptor (Domain Events → outbox_messages inside same tx)&#10;• OutboxDispatcher (Hangfire) → Integration Events (Jobs.IntegrationEvents contract-only assembly = OHS)&#10;• LocalFileStorage (/app/uploads) + auto-migration on startup (Database:AutoMigrate)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="850" width="900" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============= DATABASE ============= -->
+        <mxCell id="postgres" value="postgres:16  (container :5432 / host :5432)&#10;&#10;Schema jobs.*&#10;• jobs, job_photos, customers, employees&#10;• outbox_messages (BigSerial PK)&#10;• idempotency_keys&#10;• __ef_migrations_history&#10;&#10;Every table: organization_id FK, composite indexes lead with tenant" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=11;verticalAlign=middle;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1000" width="900" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- ============= CROSS-CUTTING (right column) ============= -->
+        <mxCell id="cross-title" value="Cross-cutting concerns" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="110" width="330" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-auth" value="Authentication&#10;&#10;JWT wired (AddJwtBearer behind Jwt:Enabled flag).&#10;Today: X-Organization-Id header.&#10;JwtTenantContext reads claim first, header fallback.&#10;See ADR-0009." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="150" width="330" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-tenant" value="Multi-tenancy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="280" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-tenant-body" value="ITenantContext.OrganizationId injected everywhere.&#10;EF global query filter → Where(x.OrgId == tenant).&#10;Every unique index scoped by organization_id.&#10;Missing tenant → 400 problem+json." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=0;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="300" width="330" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-errors" value="Error handling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="390" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-errors-body" value="Result&lt;T&gt; / Result for business rule failures.&#10;ExceptionToProblemDetailsMapper for unhandled.&#10;RFC 7807 ProblemDetails on every non-2xx.&#10;Frontend decodes into typed error UI." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="410" width="330" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-log" value="Logging &amp; Tracing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="500" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-log-body" value="Serilog structured logs + TenantId /&#10;CorrelationId enrichers.&#10;OpenTelemetry SDK wired (ASP.NET, EF, HTTP,&#10;MediatR, Hangfire) → OTLP endpoint.&#10;Collector config lives in Infra/otel/." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="520" width="330" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-idem" value="Idempotency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="620" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-idem-body" value="IdempotencyMiddleware inspects Idempotency-Key&#10;header on write endpoints.&#10;jobs.idempotency_keys table caches response for&#10;TTL — same key returns same payload." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="640" width="330" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-outbox" value="Async messaging (Outbox)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="730" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-outbox-body" value="Domain events raised by aggregates.&#10;Interceptor persists them as outbox_messages in&#10;the same transaction as aggregate state.&#10;OutboxDispatcher (Hangfire) polls, maps to&#10;Integration Events, publishes at-least-once.&#10;See ADR-0002." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="750" width="330" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc-cors" value="CORS &amp; Deployment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="880" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cc-cors-body" value="CORS open (AllowAny*) for demo — tighten via&#10;WithOrigins(...) in prod.&#10;3-container Docker Compose stack.&#10;EF migrations auto-apply on startup when&#10;Database:AutoMigrate=true (dev/compose only)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="900" width="330" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============= FLOW ARROWS ============= -->
+
+        <!-- Browser → Web (SSR/render) -->
+        <mxCell id="e-browser-web" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#333333;strokeWidth=2;exitX=0.25;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="browser" target="web-container">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-browser-web-label" value="Initial page load&#10;(SSR + hydration)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#333333;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="110" y="215" width="130" height="32" as="geometry" />
+        </mxCell>
+
+        <!-- Browser → API (client fetch) -->
+        <mxCell id="e-browser-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#B85450;strokeWidth=2;dashed=1;exitX=0.75;exitY=1;entryX=0.85;entryY=0;" edge="1" parent="1" source="browser" target="api-container">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-browser-api-label" value="Client fetch&#10;http://localhost:59081&#10;+ X-Organization-Id" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#B85450;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="380" width="180" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Web → API (server fetch) -->
+        <mxCell id="e-web-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#333333;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="web-container" target="api-container">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-web-api-label" value="Server fetch (RSC / Server Action)&#10;http://api:8080 (compose DNS)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#333333;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="580" y="480" width="240" height="32" as="geometry" />
+        </mxCell>
+
+        <!-- Presentation → Application -->
+        <mxCell id="e-pres-app" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#82B366;strokeWidth=1.5;" edge="1" parent="1" source="api-presentation" target="api-application">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Application → Domain -->
+        <mxCell id="e-app-dom" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#9673A6;strokeWidth=1.5;" edge="1" parent="1" source="api-application" target="api-domain">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Application → Infrastructure (via abstractions) -->
+        <mxCell id="e-app-infra" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#666666;strokeWidth=1.5;dashed=1;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="api-application" target="api-infra">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-app-infra-label" value="via abstractions&#10;(DIP)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontStyle=2;fontColor=#666666;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="720" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Infrastructure → Postgres -->
+        <mxCell id="e-infra-db" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#D79B00;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="api-infra" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-infra-db-label" value="Npgsql&#10;(tenant-scoped queries)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#D79B00;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="480" y="960" width="180" height="32" as="geometry" />
+        </mxCell>
+
+        <!-- ============= LEGEND ============= -->
+        <mxCell id="legend-box" value="Legend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=6;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1210" width="1600" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-fe" value="Frontend layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1215" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-app" value="API Presentation / Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="1215" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-dom" value="Domain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1215" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-infra" value="Infrastructure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1215" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-db" value="Database" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1215" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-cc" value="Cross-cutting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="880" y="1215" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-client" value="Client / Actor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="1215" width="110" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-solid" value="—— synchronous HTTP" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="1215" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg-dashed" value="- - - abstraction / dependency inversion" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=0;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="1215" width="340" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

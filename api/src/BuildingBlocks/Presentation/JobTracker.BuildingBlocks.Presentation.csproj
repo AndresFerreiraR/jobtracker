@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>JobTracker.BuildingBlocks.Presentation</RootNamespace>
+    <AssemblyName>JobTracker.BuildingBlocks.Presentation</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Application\JobTracker.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\SharedKernel\JobTracker.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

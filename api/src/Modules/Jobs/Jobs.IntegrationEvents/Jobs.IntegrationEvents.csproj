@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Jobs.IntegrationEvents</RootNamespace>
+    <AssemblyName>Jobs.IntegrationEvents</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\JobTracker.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

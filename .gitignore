@@ -1,0 +1,192 @@
+# ==============================================================================
+# JobTracker — .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# OS artifacts
+# ------------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+ehthumbs_vista.db
+*~
+
+# ------------------------------------------------------------------------------
+# Editors / IDEs
+# ------------------------------------------------------------------------------
+# VS Code — keep only shared workspace configs, ignore everything else
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# JetBrains Rider / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# ------------------------------------------------------------------------------
+# .NET / C# — applies to api/
+# ------------------------------------------------------------------------------
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Bb]uild/
+[Bb]uilds/
+[Dd]ebug/
+[Rr]elease/
+[Dd]ebugPublic/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+.nuget/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test results / code coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.VisualState.xml
+TestResult.xml
+coverage*.json
+coverage*.xml
+coverage*.info
+coverlet.*.json
+.coverage
+htmlcov/
+
+# ReSharper / Rider
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# EF Core: keep migrations tracked, ignore SQLite dev DBs
+*.db
+*.db-shm
+*.db-wal
+
+# ------------------------------------------------------------------------------
+# Node.js / Next.js — applies to web/  (web/.gitignore also present, this is belt-and-suspenders)
+# ------------------------------------------------------------------------------
+node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Testing
+coverage/
+.nyc_output/
+playwright-report/
+playwright/.cache/
+playwright/.auth/
+test-results/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Bundle analyzer
+.next/analyze/
+
+# ------------------------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------------------------------------------
+# Environment files (never commit real secrets, always keep the .example)
+# ------------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+.env.test
+!.env.example
+!.env.sample
+
+# ------------------------------------------------------------------------------
+# Local file storage (dotnet run writes uploads to wwwroot by default)
+# ------------------------------------------------------------------------------
+api/src/Host/JobTracker.Api/wwwroot/uploads/
+api/wwwroot/uploads/
+uploads/
+
+# ------------------------------------------------------------------------------
+# Docker / infra local scratch
+# ------------------------------------------------------------------------------
+docker-compose.override.yml
+.docker/
+*.pid
+
+# ------------------------------------------------------------------------------
+# Secrets / certificates — never commit
+# ------------------------------------------------------------------------------
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+secrets.*.json
+appsettings.*.Local.json
+
+# ------------------------------------------------------------------------------
+# Misc temp / editor scratch
+# ------------------------------------------------------------------------------
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej

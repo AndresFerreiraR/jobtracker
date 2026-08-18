@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Jobs.Domain</RootNamespace>
+    <AssemblyName>Jobs.Domain</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\JobTracker.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

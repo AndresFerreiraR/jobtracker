@@ -1,0 +1,110 @@
+name: e2e
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "web/**"
+      - "Infra/**"
+      - ".github/workflows/e2e.yml"
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jobtracker_e2e
+          POSTGRES_USER: jobtracker
+          POSTGRES_PASSWORD: jobtracker
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jobtracker -d jobtracker_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      ConnectionStrings__JobTracker: Host=localhost;Port=5432;Database=jobtracker_e2e;Username=jobtracker;Password=jobtracker
+      API_BASE_URL: http://localhost:5000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:5000
+      DEFAULT_ORG_ID: 00000000-0000-0000-0000-000000000001
+      ASPNETCORE_URLS: http://+:5000
+      ASPNETCORE_ENVIRONMENT: Development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Apply EF migrations
+        working-directory: api
+        run: |
+          dotnet tool install -g dotnet-ef --version 9.0.8
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet ef database update \
+            --project src/Modules/Jobs/Jobs.Infrastructure \
+            --startup-project src/Modules/Jobs/Jobs.Infrastructure \
+            --context JobsDbContext
+
+      - name: Publish backend
+        working-directory: api
+        run: dotnet publish src/Host/JobTracker.Api/JobTracker.Api.csproj -c Release -o out
+
+      - name: Start backend
+        working-directory: api/out
+        run: |
+          nohup dotnet JobTracker.Api.dll > api.log 2>&1 &
+          echo $! > api.pid
+          for i in {1..40}; do
+            if curl -fs http://localhost:5000/health; then exit 0; fi
+            sleep 2
+          done
+          echo "Backend failed to start"; cat api.log; exit 1
+
+      - name: Install frontend deps
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: web
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report
+
+      - name: Stop backend
+        if: always()
+        run: |
+          kill $(cat api/out/api.pid) || true
